@@ -2,5 +2,7 @@ pyRPC (Python Remote Project Control) is comfortable software for manage files o
 
 just create such a py file, put it in the root folder of the project and run it
 ```python
+#pip install pyRPC
+
 import pyRPC
 ```
