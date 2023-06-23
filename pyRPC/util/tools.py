@@ -42,6 +42,7 @@ def create_host(chat_id):
     with open(f'{base}/assets/config.json', mode='w') as wf:
         data['host'] = chat_id
         json.dump(data, wf)
+    return True
 
 
 def reset_token():
