@@ -34,6 +34,7 @@ def create_host(chat_id):
     with open('pyrpc.cfg', mode='w') as wf:
         data['host'] = chat_id
         json.dump(data, wf)
+    return True
 
 
 def reset_token():
