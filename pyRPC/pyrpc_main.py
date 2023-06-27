@@ -1,3 +1,4 @@
+import json
 import os
 
 import telebot.apihelper
@@ -28,18 +29,10 @@ def start(message):
     if not access(message):
         return
     markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton('explorer', callback_data="explore::.::1"))
+    markup.row(types.InlineKeyboardButton('explorer',
+                                          callback_data='{"handler": "explore", "data": ".", "new": true}'))
     markup.row(types.InlineKeyboardButton('process manager', callback_data='process'))
     bot.send_message(chat_id=message.chat.id, text='host connected successfully', reply_markup=markup)
-
-
-@bot.message_handler(commands=['explorer'])
-def explorer(message):
-    bot.delete_message(message_id=message.id, chat_id=message.chat.id)
-    if not access(message):
-        return
-    msg = explorer_func('.')
-    bot.send_message(text='your files', reply_markup=msg if msg else None, chat_id=message.chat.id)
 
 
 def explorer_func(path):
@@ -51,39 +44,42 @@ def explorer_func(path):
     for folder in folders:
         if buttons >= 45:
             break
-        markup.row(types.InlineKeyboardButton(text=f'📁{folder}',
-                                              callback_data=f"explore::{os.path.join(path, folder)}"))
+        markup.row(types.InlineKeyboardButton(text=f'📁{folder[1]}',
+                                              callback_data=json.dumps({"handler": "explore",
+                                                                        "data": f"{path}/{folder[0]}"})))
         buttons += 1
     for file in files:
         if buttons >= 45:
             break
-        markup.row(types.InlineKeyboardButton(text=f'📄{file}',
-                                              callback_data=f"selectfile::{os.path.join(path, file)}"))
+        markup.row(types.InlineKeyboardButton(text=f'📄{file[1]}',
+                                              callback_data=json.dumps({'handler': "selectfile",
+                                                                        "data": f"{path}/{file[0]}"})))
         buttons += 1
+    markup.row(types.InlineKeyboardButton(text='🔄', callback_data=json.dumps({"handler": "explore", "data": path})),
+               types.InlineKeyboardButton(text='📤upload',
+                                          callback_data=json.dumps({"handler": "upload", "data": path})))
     btns = []
     if path != '.':
-        btns.append(types.InlineKeyboardButton(text='🔙', callback_data=f"explore::{os.path.dirname(path)}"))
-        if len(path.split('\\')) > 2:
-            btns.append(types.InlineKeyboardButton(text='🏠', callback_data=f"explore::."))
+        btns.append(types.InlineKeyboardButton(text='🔙', callback_data=json.dumps({"handler": "explore",
+                                                                                   "data": os.path.split(path)[0]})))
+        if len(path.split('/')) > 2:
+            btns.append(types.InlineKeyboardButton(text='🏠',  callback_data='{"handler": "explore", "data": "."}'))
+    btns.append(types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
     markup.row(*btns)
-    markup.row(types.InlineKeyboardButton(text='🔄', callback_data=f"explore::{path}"),
-               types.InlineKeyboardButton(text='📤upload', callback_data=f"upload::{path}"))
-    markup.row(types.InlineKeyboardButton(text='❌', callback_data='close'))
     return markup
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('explore'))
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'explore')
 def handle_explorer(call):
     if not access(call.message):
         return
-    path = call.data.split("::")[1]
-    new = len(call.data.split("::")) == 3
-    msg = explorer_func(path)
+    js = json.loads(call.data)
+    msg = explorer_func(js['data'])
     if not msg:
         bot.answer_callback_query(callback_query_id=call.id, text='its empty folder')
         return
     try:
-        if new:
+        if js.get('new', False):
             bot.send_message(text='your files', reply_markup=msg, chat_id=call.message.chat.id)
             bot.answer_callback_query(callback_query_id=call.id)
         else:
@@ -93,64 +89,107 @@ def handle_explorer(call):
         bot.answer_callback_query(callback_query_id=call.id, text='there are not updates')
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('selectfile'))
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'selectfile')
 def file_view(call):
-    filename = call.data.split("::")[1]
-    notpath = filename[filename.rfind('\\') + 1:]
+    filename = json.loads(call.data)['data']
+    only_name = os.path.split(tools.unlex(filename))[1]
+    print(filename, only_name)
+    print({"handler": "ask", "data": {"handler": "delete", "data": filename}})
     markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton(text='⬇️download', callback_data=f"download::{filename}"))
-    markup.row(types.InlineKeyboardButton(text='🗑️delete', callback_data=f"&delete::{filename}"))
+    markup.row(types.InlineKeyboardButton(text='⬇️download',
+                                          callback_data=json.dumps({"handler": "download", 'data': filename})))
+    markup.row(types.InlineKeyboardButton(text='🗑️delete',
+                                          callback_data=json.dumps({"handler": "?delete", "data": filename})))
     markup.row(types.InlineKeyboardButton(text='🔄replace', callback_data=f"replace::{filename}"))
-    if notpath.endswith('.exe') or notpath.endswith('.py'):
+    if only_name.endswith('.exe') or only_name.endswith('.py'):
         markup.row(types.InlineKeyboardButton(text='▶️run', callback_data=f"run::{filename}"))
-    markup.row(types.InlineKeyboardButton(text='🔙', callback_data=f"explore::{os.path.dirname(filename)}"),
-               types.InlineKeyboardButton(text='❌', callback_data='close'))
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'selected file - {notpath}',
+    markup.row(types.InlineKeyboardButton(text='🔙', callback_data=json.dumps({"handler": "explore",
+                                                                              "data": os.path.dirname(filename)})),
+               types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'selected file - {only_name}',
                           reply_markup=markup)
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('download'))
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'download')
 def download(call):
-    filename = call.data.split('::')[1]
+    filename = tools.unlex(json.loads(call.data)['data'])
     with open(filename, mode='rb') as rf:
         data = BytesIO(rf.read())
-        data.name = filename[filename.rfind('\\') + 1:]
+        data.name = os.path.split(filename)[1]
     markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton(text='❌', callback_data='close'))
-    bot.send_document(chat_id=call.message.chat.id, reply_markup=markup, document=data)
+    markup.row(types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+    try:
+        bot.send_document(chat_id=call.message.chat.id, reply_markup=markup, document=data)
+        bot.answer_callback_query(callback_query_id=call.id)
+    except:
+        bot.answer_callback_query(callback_query_id=call.id, text='file is empty')
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('delete'))
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'delete')
 def delete(call):
     bot.answer_callback_query(call.id)
-    filename, action = call.data.split('::')[1:]
+    jsdata = json.loads(call.data)
+    filename, action = jsdata['data'], jsdata['state']
     if action:
-        os.remove(filename)
-    msg = explorer_func(os.path.split(filename)[0])
-    if not msg:
-        msg = explorer_func('.')
+        os.remove(tools.unlex(filename))
+    msg = explorer_func(filename[:filename.rfind('/')])
     bot.edit_message_text(text='your files', reply_markup=msg, chat_id=call.message.chat.id,
                           message_id=call.message.id)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == 'close')
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'close')
 def close(call):
     bot.delete_message(message_id=call.message.id, chat_id=call.message.chat.id)
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'].startswith('?'))
+def conf_action(call):
+    callback = json.loads(call.data)
+    callback['handler'] = callback['handler'][1:]
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton('confirm✅', callback_data=json.dumps({**callback, "state": True})))
+    markup.row(types.InlineKeyboardButton("cancel❌", callback_data=json.dumps({**callback, "state": False})))
+    bot.edit_message_text(message_id=call.message.id, chat_id=call.message.chat.id, text="confirm action:",
+                          reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'upload')
+def upload(call):
+    path = json.loads(call.data)['data']
+    bot.answer_callback_query(callback_query_id=call.id, text='send any file')
+    bot.register_next_step_handler_by_chat_id(call.message.chat.id, file_handler, call.message.id, path)
+    pass
+
+
+def file_handler(message, mid, path):
+    if message.photo:
+        file_info = bot.get_file(message.photo[-1].file_id)
+        filename = file_info.file_path[file_info.file_path.rfind('/'):]
+    elif message.video:
+        file_info = bot.get_file(message.video.file_id)
+        filename = message.video.file_name
+    elif message.audio:
+        file_info = bot.get_file(message.audio.file_id)
+        filename = message.audio.file_name
+    elif message.document:
+        file_info = bot.get_file(message.document.file_id)
+        filename = message.document.file_name
+    else:
+        markup = types.InlineKeyboardMarkup()
+        markup.row(types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+        bot.send_message(chat_id=message.chat.id, text='unsupported type', reply_markup=markup)
+        bot.delete_message(chat_id=message.chat.id, message_id=message.id)
+        return
+    downloaded_file = bot.download_file(file_info.file_path)
+    with open(f"{tools.unlex(path)}/{filename}", 'wb') as new_file:
+        new_file.write(downloaded_file)
+    msg = explorer_func(path)
+    bot.edit_message_text(text='your files', reply_markup=msg, chat_id=message.chat.id, message_id=mid)
 
 
 @bot.message_handler(content_types=['text', 'audio', 'photo', 'video', 'media', 'file', 'voice', 'video_note'])
 def deleter(message):
     bot.delete_message(message.chat.id, message.id)
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('&'))
-def conf_action(call):
-    callback = call.data[1:]
-    markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton('confirm✅', callback_data=f"{callback}::1"))
-    markup.row(types.InlineKeyboardButton("cancel❌", callback_data=f"{callback}::"))
-    bot.edit_message_text(message_id=call.message.id, chat_id=call.message.chat.id, text="confirm action:",
-                          reply_markup=markup)
 
 
 try:

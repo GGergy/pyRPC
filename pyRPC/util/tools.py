@@ -1,18 +1,22 @@
 import json
 import telebot
 import os
+from functools import lru_cache
 
 
 def init():
     if not os.path.isfile('pyrpc.cfg'):
         with open('pyrpc.cfg', mode='w') as wf:
-            wf.write('{}')
-        return {}
+            wf.write('{"lexemas": {}}')
+        return {"lexemas": {}}
     with open('pyrpc.cfg') as rf:
-        return json.load(rf)
+        dat = json.load(rf)
+        # dat['lexemas'] = {}
+        return dat
 
 
 data = init()
+lens = 0
 
 
 def load_bot():
@@ -44,11 +48,31 @@ def reset_token():
 
 
 def explore(path):
-    answer = [f for f in os.scandir(path)]
+    answer = [f for f in os.scandir(unlex(path))]
     folders, files = [], []
     for item in answer:
+        index = lex(item.name)
         if item.is_dir():
-            folders.append(item.name)
+            folders.append((index, item.name))
         else:
-            files.append(item.name)
+            files.append((index, item.name))
     return folders, files
+
+
+@lru_cache
+def lex(arg):
+    global lens
+    if arg not in data['lexemas'].items():
+        data['lexemas'][str(lens + 1)] = arg
+        lens += 1
+        with open('pyrpc.cfg', mode='w') as wf:
+            json.dump(data, wf)
+        return lens
+    for key, item in data['lexemas'].values():
+        if item == arg:
+            return key
+
+
+@lru_cache
+def unlex(arg):
+    return '/'.join([data['lexemas'][item] if item != '.' else item for item in arg.split('/')])
