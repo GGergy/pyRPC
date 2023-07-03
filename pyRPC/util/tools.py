@@ -2,6 +2,7 @@ import json
 import telebot
 import os
 from functools import lru_cache
+from .hardware_monitor import fetch_stats
 
 
 def init():
@@ -16,7 +17,7 @@ def init():
 
 
 data = init()
-lens = 0
+lens = len(data['lexemas'].keys())
 
 
 def load_bot():
@@ -76,3 +77,7 @@ def lex(arg):
 @lru_cache
 def unlex(arg):
     return '/'.join([data['lexemas'][item] if item != '.' else item for item in arg.split('/')])
+
+
+def get_sensors():
+    return "\n".join(fetch_stats())
