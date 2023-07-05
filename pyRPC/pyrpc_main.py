@@ -52,7 +52,8 @@ def explorer_func(path):
                                                                         "data": f"{path}/{file[0]}"})))
         buttons += 1
     markup.row(types.InlineKeyboardButton(text='🔄', callback_data=json.dumps({"handler": "explore", "data": path})),
-               types.InlineKeyboardButton(text='console', callback_data=json.dumps({"handler": "console", "data": path})),
+               types.InlineKeyboardButton(text='console',
+                                          callback_data=json.dumps({"handler": "console", "data": path})),
                types.InlineKeyboardButton(text='📤upload',
                                           callback_data=json.dumps({"handler": "upload", "data": path})))
     btns = []
