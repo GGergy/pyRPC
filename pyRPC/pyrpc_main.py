@@ -1,11 +1,7 @@
 import json
 import os
+import time
 import telebot.apihelper
-
-if __name__ == "__main__":
-    os.chdir(os.path.split(os.getcwd())[0])
-    os.system("python test.py")
-    quit()
 from io import BytesIO
 from .util import tools, process
 from telebot import types
@@ -30,7 +26,7 @@ def start(message):
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton('explorer',
                                           callback_data='{"handler": "explore", "data": ".", "new": true}'))
-    markup.row(types.InlineKeyboardButton('process manager', callback_data='process'))
+    markup.row(types.InlineKeyboardButton('process manager', callback_data='{"handler": "process", "new": true}'))
     markup.row(types.InlineKeyboardButton("computer info", callback_data='{"handler": "hardware_monitor"}'))
     bot.send_message(chat_id=message.chat.id, text='host connected successfully', reply_markup=markup)
 
@@ -56,6 +52,7 @@ def explorer_func(path):
                                                                         "data": f"{path}/{file[0]}"})))
         buttons += 1
     markup.row(types.InlineKeyboardButton(text='🔄', callback_data=json.dumps({"handler": "explore", "data": path})),
+               types.InlineKeyboardButton(text='console', callback_data=json.dumps({"handler": "console", "data": path})),
                types.InlineKeyboardButton(text='📤upload',
                                           callback_data=json.dumps({"handler": "upload", "data": path})))
     btns = []
@@ -72,8 +69,6 @@ def explorer_func(path):
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'explore')
 def handle_explorer(call):
     bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    if not access(call.message):
-        return
     js = json.loads(call.data)
     msg = explorer_func(js['data'])
     if not msg:
@@ -216,8 +211,6 @@ def replace(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'hardware_monitor')
 def hardware_monitor(call):
-    if not access(call.message):
-        return
     mid = json.loads(call.data).get('data', None)
     if not mid:
         mid = bot.send_message(chat_id=call.message.chat.id, text='please, wait for result').id
@@ -235,9 +228,108 @@ def hardware_monitor(call):
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'run')
 def create_process(call):
     filename = json.loads(call.data)['data']
-    process.Process(file=filename, absfile=os.path.abspath(tools.unlex(filename)),
-                    default_dir=os.getcwd(), handler=bot)
+    process.Process(absfile=os.path.abspath(tools.unlex(filename)), default_dir=os.getcwd(), handler=bot)
     bot.answer_callback_query(text='process was started successfully', callback_query_id=call.id)
+
+
+def process_mk():
+    mk = types.InlineKeyboardMarkup()
+    for proc in process.processes.values():
+        mk.row(types.InlineKeyboardButton(proc.name, callback_data=json.dumps({"handler": "view_proc",
+                                                                               "data": proc.id})))
+    mk.row(types.InlineKeyboardButton("🔄", callback_data='{"handler": "process", "new": false}'),
+           types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+    return mk
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'process')
+def process_menu(call):
+    new = json.loads(call.data)['new']
+    bot.answer_callback_query(callback_query_id=call.id)
+    if new:
+        bot.send_message(chat_id=call.message.chat.id, text='active processes:', reply_markup=process_mk())
+        return
+    try:
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
+                              text='active processes:', reply_markup=process_mk())
+    except telebot.apihelper.ApiTelegramException:
+        bot.answer_callback_query(callback_query_id=call.id, text='there are no updates')
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'view_proc')
+def view_proc(call):
+    pid = json.loads(call.data)['data']
+    proc = process.processes.get(pid, False)
+    if not proc:
+        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
+                              reply_markup=process_mk())
+        return
+    mk = types.InlineKeyboardMarkup()
+    mk.row(types.InlineKeyboardButton(text='communicate',
+                                      callback_data=json.dumps({"handler": "communicate", "data": proc.id})))
+    mk.row(types.InlineKeyboardButton(text='kill', callback_data=json.dumps({"handler": "?kill", "data": pid})))
+    mk.row(types.InlineKeyboardButton("🔙", callback_data='{"handler": "process", "new": false}'),
+           types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'process {proc.name}',
+                          reply_markup=mk)
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'kill')
+def kill_proc(call):
+    jsdata = json.loads(call.data)
+    pid = jsdata['data']
+    state = jsdata['state']
+    proc = process.processes.get(pid, False)
+    if not proc:
+        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
+    elif state:
+        proc.kill()
+        time.sleep(1)
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
+                          reply_markup=process_mk())
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'communicate')
+def communicate(call):
+    pid = json.loads(call.data)['data']
+    proc = process.processes.get(pid, False)
+    if not proc:
+        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
+                              reply_markup=process_mk())
+        return
+    bot.answer_callback_query(callback_query_id=call.id, text='send input data')
+    bot.register_next_step_handler_by_chat_id(call.message.chat.id, input_handler, pid, call)
+
+
+def input_handler(message, pid, call):
+    bot.delete_message(message_id=message.id, chat_id=message.chat.id)
+    proc = process.processes.get(pid, False)
+    if not proc:
+        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
+                              reply_markup=process_mk())
+        return
+    input_data = message.text
+    proc.communicate(input_data)
+    bot.answer_callback_query(callback_query_id=call.id, text='data sent')
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'console')
+def create_console(call):
+    file = json.loads(call.data)['data']
+    bot.answer_callback_query(text='send command', callback_query_id=call.id)
+    bot.register_next_step_handler_by_chat_id(chat_id=call.message.chat.id, callback=console_handler,
+                                              file=tools.unlex(file))
+
+
+def console_handler(message, file):
+    bot.delete_message(chat_id=message.chat.id, message_id=message.id)
+    old_cwd = os.getcwd()
+    os.chdir(file)
+    os.system(message.text)
+    os.chdir(old_cwd)
 
 
 @bot.message_handler(content_types=['text', 'audio', 'photo', 'video', 'media', 'file', 'voice', 'video_note'])

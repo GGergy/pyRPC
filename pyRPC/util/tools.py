@@ -1,4 +1,6 @@
 import json
+import webbrowser
+
 import telebot
 import os
 from functools import lru_cache
@@ -81,3 +83,5 @@ def unlex(arg):
 
 def get_sensors():
     return "\n".join(fetch_stats())
+
+
