@@ -1,6 +1,4 @@
 import json
-import webbrowser
-
 import telebot
 import os
 from functools import lru_cache
@@ -14,7 +12,6 @@ def init():
         return {"lexemas": {}}
     with open('pyrpc.cfg') as rf:
         dat = json.load(rf)
-        # dat['lexemas'] = {}
         return dat
 
 
@@ -83,5 +80,3 @@ def unlex(arg):
 
 def get_sensors():
     return "\n".join(fetch_stats())
-
-
