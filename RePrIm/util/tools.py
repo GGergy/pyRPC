@@ -6,11 +6,11 @@ from .hardware_monitor import fetch_stats
 
 
 def init():
-    if not os.path.isfile('pyrpc.cfg'):
+    if not os.path.isfile('reprim.rpc'):
         with open('pyrpc.cfg', mode='w') as wf:
             wf.write('{"lexemas": {}}')
         return {"lexemas": {}}
-    with open('pyrpc.cfg') as rf:
+    with open('reprim.rpc') as rf:
         dat = json.load(rf)
         return dat
 
@@ -26,7 +26,7 @@ def load_bot():
         return telebot.TeleBot(data['token'])
     token = input("couldn't find the bot token, create a telegram bot and send the token: ")
     print('done! now, start bot')
-    with open('pyrpc.cfg', mode='w') as wf:
+    with open('reprim.rpc', mode='w') as wf:
         data['token'] = token
         json.dump(data, wf)
     return telebot.TeleBot(token)
@@ -35,14 +35,14 @@ def load_bot():
 def create_host(chat_id):
     if data.get('host', False):
         return
-    with open('pyrpc.cfg', mode='w') as wf:
+    with open('reprim.rpc', mode='w') as wf:
         data['host'] = chat_id
         json.dump(data, wf)
     return True
 
 
 def reset_token():
-    with open('pyrpc.cfg', mode='w') as wf:
+    with open('reprim.rpc', mode='w') as wf:
         data.pop('token')
         json.dump(data, wf)
 
@@ -65,7 +65,7 @@ def lex(arg):
     if arg not in data['lexemas'].items():
         data['lexemas'][str(lens + 1)] = arg
         lens += 1
-        with open('pyrpc.cfg', mode='w') as wf:
+        with open('reprim.rpc', mode='w') as wf:
             json.dump(data, wf)
         return lens
     for key, item in data['lexemas'].values():

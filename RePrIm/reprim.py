@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import time
 import telebot.apihelper
 from io import BytesIO
@@ -19,6 +20,7 @@ def access(message):
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     bot.delete_message(message_id=message.id, chat_id=message.chat.id)
     tools.create_host(message.chat.id)
     if not access(message):
@@ -53,9 +55,13 @@ def explorer_func(path):
         buttons += 1
     markup.row(types.InlineKeyboardButton(text='🔄', callback_data=json.dumps({"handler": "explore", "data": path})),
                types.InlineKeyboardButton(text='console',
-                                          callback_data=json.dumps({"handler": "console", "data": path})),
-               types.InlineKeyboardButton(text='📤upload',
-                                          callback_data=json.dumps({"handler": "upload", "data": path})))
+                                          callback_data=json.dumps({"handler": "console", "data": path}))
+               )
+    markup.row(types.InlineKeyboardButton(text='📤upload',
+                                          callback_data=json.dumps({"handler": "upload", "data": path})),
+               types.InlineKeyboardButton(text='⬇️download',
+                                          callback_data=json.dumps({"handler": "download_dir", "data": path}))
+               )
     btns = []
     if path != '.':
         btns.append(types.InlineKeyboardButton(text='🔙', callback_data=json.dumps({"handler": "explore",
@@ -100,6 +106,8 @@ def file_view_func(filename, message_id, chat_id):
                                           callback_data=json.dumps({"handler": "download", 'data': filename})))
     markup.row(types.InlineKeyboardButton(text='🗑️delete',
                                           callback_data=json.dumps({"handler": "?delete", "data": filename})))
+    markup.row(types.InlineKeyboardButton(text='✏️rename',
+                                          callback_data=json.dumps({"handler": "rename", 'data': filename})))
     markup.row(types.InlineKeyboardButton(text='🔄replace',
                                           callback_data=json.dumps({"handler": "replace", "data": filename})))
     if only_name.endswith('.exe') or only_name.endswith('.py'):
@@ -125,11 +133,12 @@ def download(call):
         bot.send_document(chat_id=call.message.chat.id, reply_markup=markup, document=data)
         bot.answer_callback_query(callback_query_id=call.id)
     except:
-        bot.answer_callback_query(callback_query_id=call.id, text='file is empty')
+        bot.send_message(chat_id=call.message.chat.id, reply_markup=markup, text='file is empty or too much')
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'delete')
 def delete(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     bot.answer_callback_query(call.id)
     jsdata = json.loads(call.data)
     filename, action = jsdata['data'], jsdata['state']
@@ -160,6 +169,7 @@ def conf_action(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'upload')
 def upload(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     path = json.loads(call.data)['data']
     bot.answer_callback_query(callback_query_id=call.id, text='send any file')
     bot.register_next_step_handler_by_chat_id(call.message.chat.id, file_handler, call.message.id, path)
@@ -205,6 +215,7 @@ def file_handler(message, mid, path, target='new'):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'replace')
 def replace(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     path = json.loads(call.data)['data']
     bot.answer_callback_query(callback_query_id=call.id, text='send file')
     bot.register_next_step_handler_by_chat_id(call.message.chat.id, file_handler, call.message.id, path, 'replace')
@@ -212,6 +223,7 @@ def replace(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'hardware_monitor')
 def hardware_monitor(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     mid = json.loads(call.data).get('data', None)
     if not mid:
         mid = bot.send_message(chat_id=call.message.chat.id, text='please, wait for result').id
@@ -228,6 +240,7 @@ def hardware_monitor(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'run')
 def create_process(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     filename = json.loads(call.data)['data']
     process.Process(absfile=os.path.abspath(tools.unlex(filename)), default_dir=os.getcwd(), handler=bot)
     bot.answer_callback_query(text='process was started successfully', callback_query_id=call.id)
@@ -245,6 +258,7 @@ def process_mk():
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'process')
 def process_menu(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     new = json.loads(call.data)['new']
     bot.answer_callback_query(callback_query_id=call.id)
     if new:
@@ -259,6 +273,7 @@ def process_menu(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'view_proc')
 def view_proc(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     pid = json.loads(call.data)['data']
     proc = process.processes.get(pid, False)
     if not proc:
@@ -278,6 +293,7 @@ def view_proc(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'kill')
 def kill_proc(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     jsdata = json.loads(call.data)
     pid = jsdata['data']
     state = jsdata['state']
@@ -293,6 +309,7 @@ def kill_proc(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'communicate')
 def communicate(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     pid = json.loads(call.data)['data']
     proc = process.processes.get(pid, False)
     if not proc:
@@ -319,6 +336,7 @@ def input_handler(message, pid, call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'console')
 def create_console(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     file = json.loads(call.data)['data']
     bot.answer_callback_query(text='send command', callback_query_id=call.id)
     bot.register_next_step_handler_by_chat_id(chat_id=call.message.chat.id, callback=console_handler,
@@ -333,8 +351,54 @@ def console_handler(message, file):
     os.chdir(old_cwd)
 
 
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'download_dir')
+def download_dir(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
+    bot.answer_callback_query(callback_query_id=call.id, text='building zip file...')
+    path = tools.unlex(json.loads(call.data)['data'])
+    chat_id = call.message.chat.id
+    archive = shutil.make_archive('buff', 'zip', path)
+    with open(archive, mode='rb') as rf:
+        data = BytesIO(rf.read())
+        data.name = f'{path.split("//")[-1]}.zip'
+    os.remove('buff.zip')
+    markup = types.InlineKeyboardMarkup()
+    markup.row(types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
+    send(blob=data, chat_id=chat_id, mk=markup)
+
+
+def send(chat_id, blob, mk):
+    try:
+        bot.send_document(chat_id=chat_id, document=blob, reply_markup=mk)
+    except:
+        bot.send_message(chat_id=chat_id, text="cannot send zip file, it's too much", reply_markup=mk)
+
+
+@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'rename')
+def rename_file(call):
+    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
+    file = json.loads(call.data)['data']
+    bot.answer_callback_query(callback_query_id=call.id, text='send new filename')
+    bot.register_next_step_handler_by_chat_id(chat_id=call.message.chat.id, callback=handler_filename, old=file,
+                                              call=call)
+
+
+def handler_filename(message, old, call):
+    bot.delete_message(chat_id=message.chat.id, message_id=message.id)
+    new_name = message.text
+    unlex = tools.unlex(old)
+    dirname = os.path.dirname(unlex)
+    rs = unlex[unlex.rfind('.'):]
+    new_path = f'{dirname}/{new_name}{rs}'
+    os.renames(tools.unlex(old), new_path)
+    fid = tools.lex(f'{new_name}{rs}')
+    file_view_func(message_id=call.message.id, chat_id=call.message.chat.id,
+                   filename=old[:old.rfind('/') + 1] + str(fid))
+
+
 @bot.message_handler(content_types=['text', 'audio', 'photo', 'video', 'media', 'file', 'voice', 'video_note'])
 def deleter(message):
+    bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     bot.delete_message(message.chat.id, message.id)
 
 
