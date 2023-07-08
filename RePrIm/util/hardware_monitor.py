@@ -55,9 +55,10 @@ def fetch_stats():
 
 
 def parse_sensor(sensor):
-    if not sensor:
-        return
-    if str(sensor.SensorType) not in degrees.keys():
-        return
-    ref = "HDD " if str(sensor.Name) == 'Used Space' else ""
-    return f"{ref}{sensor.Name} {sensor.SensorType} - {round(sensor.Value, 2)} {degrees[str(sensor.SensorType)]}"
+    try:
+        if str(sensor.SensorType) not in degrees.keys():
+            return
+        ref = "HDD " if str(sensor.Name) == 'Used Space' else ""
+        return f"{ref}{sensor.Name} {sensor.SensorType} - {round(sensor.Value, 2)} {degrees[str(sensor.SensorType)]}"
+    except:
+        return None
