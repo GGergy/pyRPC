@@ -8,14 +8,14 @@ requirements = ["pytelegrambotapi", "pythonnet"]
 
 setup(
     name="reprim",
-    version="0.0.1",
+    version="0.0.3",
     author="GGergy",
     author_email="gergy2k07@gmail.com",
     description="for questions write me in Telegram (@IDieLast)",
     long_description=readme,
     long_description_content_type="text/markdown",
     url="https://github.com/GGergy/RePrIm/",
-    packages=['util'],
+    packages=['RePrIm', 'RePrIm/util'],
     install_requires=requirements,
     classifiers=[
         "Programming Language :: Python :: 3.11",
