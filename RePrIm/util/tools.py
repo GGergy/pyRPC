@@ -7,7 +7,7 @@ from .hardware_monitor import fetch_stats
 
 def init():
     if not os.path.isfile('reprim.rpc'):
-        with open('pyrpc.cfg', mode='w') as wf:
+        with open('reprim.rpc', mode='w') as wf:
             wf.write('{"lexemas": {}}')
         return {"lexemas": {}}
     with open('reprim.rpc') as rf:

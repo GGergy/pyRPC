@@ -55,6 +55,8 @@ def fetch_stats():
 
 
 def parse_sensor(sensor):
+    if not sensor:
+        return
     if str(sensor.SensorType) not in degrees.keys():
         return
     ref = "HDD " if str(sensor.Name) == 'Used Space' else ""
