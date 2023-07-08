@@ -2,7 +2,12 @@ import json
 import telebot
 import os
 from functools import lru_cache
-from .hardware_monitor import fetch_stats
+
+try:
+    from .hardware_monitor import fetch_stats
+    hm_supported = True
+except:
+    hm_supported = False
 
 
 def init():
@@ -79,4 +84,7 @@ def unlex(arg):
 
 
 def get_sensors():
-    return "\n".join(fetch_stats())
+    if hm_supported:
+        return "\n".join(fetch_stats())
+    else:
+        return "your pc is not supported hardware monitor"
