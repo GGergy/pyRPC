@@ -19,7 +19,7 @@ HardwareHandle = None
 
 
 def initialize_openhardwaremonitor():
-    clr.AddReference(os.path.join(os.path.split(__file__)[0], 'lib.dll'))
+    clr.AddReference(os.path.join(os.path.split(__file__)[0], 'lib.py'))
 
     from OpenHardwareMonitor import Hardware
     handle = Hardware.Computer()

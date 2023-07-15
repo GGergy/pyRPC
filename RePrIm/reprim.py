@@ -9,6 +9,7 @@ from telebot import types
 
 tools.init()
 bot = tools.load_bot()
+print("using dev version...")
 
 
 def access(message):
@@ -361,6 +362,8 @@ def download_dir(call):
     with open(archive, mode='rb') as rf:
         data = BytesIO(rf.read())
         data.name = f'{path.split("//")[-1]}.zip'
+        if data.name == 'zip':
+            data.name = 'source.zip'
     os.remove('buff.zip')
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
