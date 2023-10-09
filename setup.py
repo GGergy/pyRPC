@@ -8,7 +8,7 @@ requirements = ["pytelegrambotapi", "pythonnet"]
 
 setup(
     name="reprim",
-    version="0.0.8",
+    version="0.1.3",
     author="GGergy",
     author_email="gergy2k07@gmail.com",
     description="for questions write me in Telegram (@IDieLast)",

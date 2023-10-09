@@ -2,9 +2,6 @@ import os
 import clr
 
 
-if not os.path.isfile(os.path.join(os.path.split(__file__)[0], 'lib.dll')):
-    os.renames(os.path.join(os.path.split(__file__)[0], 'lib.py'), os.path.join(os.path.split(__file__)[0], 'lib.dll'))
-
 openhardwaremonitor_hwtypes = [
     'Mainboard', 'SuperIO', 'CPU', 'RAM', 'GpuNvidia', 'GpuAti', 'TBalancer', 'Heatmaster', 'HDD'
 ]

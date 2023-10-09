@@ -33,6 +33,8 @@ def load_bot():
     print('done! now, start bot')
     with open('reprim.rpc', mode='w') as wf:
         data['token'] = token
+        data['wait_for_input'] = False
+        data['input'] = None
         json.dump(data, wf)
     return telebot.TeleBot(token)
 

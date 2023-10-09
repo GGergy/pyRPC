@@ -1,15 +1,17 @@
 import json
 import os
 import shutil
-import time
 import telebot.apihelper
+import multiprocessing
 from io import BytesIO
-from .util import tools, process
+from .util import tools, reprim_io
 from telebot import types
+
 
 tools.init()
 bot = tools.load_bot()
-print("using dev version...")
+main_function = None
+__process = None
 
 
 def access(message):
@@ -29,7 +31,7 @@ def start(message):
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton('explorer',
                                           callback_data='{"handler": "explore", "data": ".", "new": true}'))
-    markup.row(types.InlineKeyboardButton('process manager', callback_data='{"handler": "process", "new": true}'))
+    markup.row(types.InlineKeyboardButton('start/stop project', callback_data='{"handler": "start"}'))
     markup.row(types.InlineKeyboardButton("computer info", callback_data='{"handler": "hardware_monitor"}'))
     bot.send_message(chat_id=message.chat.id, text='host connected successfully', reply_markup=markup)
 
@@ -104,16 +106,13 @@ def file_view_func(filename, message_id, chat_id):
     only_name = os.path.split(tools.unlex(filename))[1]
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(text='⬇️download',
-                                          callback_data=json.dumps({"handler": "download", 'data': filename})))
-    markup.row(types.InlineKeyboardButton(text='🗑️delete',
+                                          callback_data=json.dumps({"handler": "download", 'data': filename})),
+               types.InlineKeyboardButton(text='🗑️delete',
                                           callback_data=json.dumps({"handler": "?delete", "data": filename})))
     markup.row(types.InlineKeyboardButton(text='✏️rename',
-                                          callback_data=json.dumps({"handler": "rename", 'data': filename})))
-    markup.row(types.InlineKeyboardButton(text='🔄replace',
+                                          callback_data=json.dumps({"handler": "rename", 'data': filename})),
+               types.InlineKeyboardButton(text='🔄replace',
                                           callback_data=json.dumps({"handler": "replace", "data": filename})))
-    if only_name.endswith('.exe') or only_name.endswith('.py'):
-        markup.row(types.InlineKeyboardButton(text='▶️run',
-                                              callback_data=json.dumps({"handler": "run", "data": filename})))
     markup.row(types.InlineKeyboardButton(text='🔙', callback_data=json.dumps({"handler": "explore",
                                                                               "data": os.path.dirname(filename)})),
                types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
@@ -239,102 +238,6 @@ def hardware_monitor(call):
     bot.answer_callback_query(callback_query_id=call.id)
 
 
-@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'run')
-def create_process(call):
-    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    filename = json.loads(call.data)['data']
-    process.Process(absfile=os.path.abspath(tools.unlex(filename)), default_dir=os.getcwd(), handler=bot)
-    bot.answer_callback_query(text='process was started successfully', callback_query_id=call.id)
-
-
-def process_mk():
-    mk = types.InlineKeyboardMarkup()
-    for proc in process.processes.values():
-        mk.row(types.InlineKeyboardButton(proc.name, callback_data=json.dumps({"handler": "view_proc",
-                                                                               "data": proc.id})))
-    mk.row(types.InlineKeyboardButton("🔄", callback_data='{"handler": "process", "new": false}'),
-           types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
-    return mk
-
-
-@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'process')
-def process_menu(call):
-    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    new = json.loads(call.data)['new']
-    bot.answer_callback_query(callback_query_id=call.id)
-    if new:
-        bot.send_message(chat_id=call.message.chat.id, text='active processes:', reply_markup=process_mk())
-        return
-    try:
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
-                              text='active processes:', reply_markup=process_mk())
-    except telebot.apihelper.ApiTelegramException:
-        bot.answer_callback_query(callback_query_id=call.id, text='there are no updates')
-
-
-@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'view_proc')
-def view_proc(call):
-    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    pid = json.loads(call.data)['data']
-    proc = process.processes.get(pid, False)
-    if not proc:
-        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
-                              reply_markup=process_mk())
-        return
-    mk = types.InlineKeyboardMarkup()
-    mk.row(types.InlineKeyboardButton(text='communicate',
-                                      callback_data=json.dumps({"handler": "communicate", "data": proc.id})))
-    mk.row(types.InlineKeyboardButton(text='kill', callback_data=json.dumps({"handler": "?kill", "data": pid})))
-    mk.row(types.InlineKeyboardButton("🔙", callback_data='{"handler": "process", "new": false}'),
-           types.InlineKeyboardButton(text='❌', callback_data='{"handler": "close"}'))
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'process {proc.name}',
-                          reply_markup=mk)
-
-
-@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'kill')
-def kill_proc(call):
-    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    jsdata = json.loads(call.data)
-    pid = jsdata['data']
-    state = jsdata['state']
-    proc = process.processes.get(pid, False)
-    if not proc:
-        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
-    elif state:
-        proc.kill()
-        time.sleep(1)
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
-                          reply_markup=process_mk())
-
-
-@bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'communicate')
-def communicate(call):
-    bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    pid = json.loads(call.data)['data']
-    proc = process.processes.get(pid, False)
-    if not proc:
-        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
-                              reply_markup=process_mk())
-        return
-    bot.answer_callback_query(callback_query_id=call.id, text='send input data')
-    bot.register_next_step_handler_by_chat_id(call.message.chat.id, input_handler, pid, call)
-
-
-def input_handler(message, pid, call):
-    bot.delete_message(message_id=message.id, chat_id=message.chat.id)
-    proc = process.processes.get(pid, False)
-    if not proc:
-        bot.answer_callback_query(text='process is not exist now', callback_query_id=call.id)
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, text=f'active processes:',
-                              reply_markup=process_mk())
-        return
-    input_data = message.text
-    proc.communicate(input_data)
-    bot.answer_callback_query(callback_query_id=call.id, text='data sent')
-
-
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'console')
 def create_console(call):
     bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
@@ -346,10 +249,10 @@ def create_console(call):
 
 def console_handler(message, file):
     bot.delete_message(chat_id=message.chat.id, message_id=message.id)
-    old_cwd = os.getcwd()
+    curdir = os.getcwd()
     os.chdir(file)
     os.system(message.text)
-    os.chdir(old_cwd)
+    os.chdir(curdir)
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'download_dir')
@@ -362,7 +265,7 @@ def download_dir(call):
     with open(archive, mode='rb') as rf:
         data = BytesIO(rf.read())
         data.name = f'{path.split("//")[-1]}.zip'
-        if data.name == 'zip':
+        if data.name == '..zip':
             data.name = 'source.zip'
     os.remove('buff.zip')
     markup = types.InlineKeyboardMarkup()
@@ -399,14 +302,47 @@ def handler_filename(message, old, call):
                    filename=old[:old.rfind('/') + 1] + str(fid))
 
 
+@bot.callback_query_handler(lambda call: json.loads(call.data)['handler'] == 'start')
+def start_project(call):
+    global __process
+
+    if not main_function:
+        bot.answer_callback_query(callback_query_id=call.id, text='Main function is not configured')
+        return
+    if not __process.is_alive():
+        __process.start()
+        bot.answer_callback_query(callback_query_id=call.id, text='Project started')
+        return
+    __process.terminate()
+    __process.close()
+    __process = multiprocessing.Process(target=main_function)
+    bot.answer_callback_query(callback_query_id=call.id, text='Project stopped')
+
+
 @bot.message_handler(content_types=['text', 'audio', 'photo', 'video', 'media', 'file', 'voice', 'video_note'])
 def deleter(message):
     bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     bot.delete_message(message.chat.id, message.id)
 
 
-try:
-    print('host created, dont shutdown your PC')
-    bot.infinity_polling()
-except:
-    tools.reset_token()
+def config(main_func, prestart=False):
+    global main_function, __process
+    main_function = main_func
+    __process = multiprocessing.Process(target=main_function)
+    if prestart:
+        __process.start()
+
+
+def get_io_client():
+    return reprim_io.RePrImOutput(handler=bot)
+
+
+def start_host():
+    try:
+        print("successfully started RePrIm 0.1.4 by GGergy (https://github.com/GGergy/)")
+        print('host created, dont shutdown your PC')
+        if not main_function:
+            print('Warning: main function is not configured, project cannot run')
+        bot.infinity_polling()
+    except:
+        tools.reset_token()
