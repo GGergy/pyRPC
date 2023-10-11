@@ -1,4 +1,5 @@
 import json
+import subprocess
 import telebot
 import os
 from functools import lru_cache
@@ -90,3 +91,8 @@ def get_sensors():
         return "\n".join(fetch_stats())
     else:
         return "your pc is not supported hardware monitor"
+
+
+def execute_command(command, directory):
+    process = subprocess.Popen(command.split(), shell=True, stdout=subprocess.PIPE, cwd=directory)
+    return process.communicate('', timeout=10)[0]
