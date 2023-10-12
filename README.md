@@ -18,12 +18,13 @@ if __name__ == '__main__':
 ```python
 #myproject file
 
-from RePrIm import get_io_client
+from RePrIm import get_io_clients
 import sys
 
 
 def main():
-    reprim_output = get_io_client()
+    reprim_input, reprim_output = get_io_clients()
+    sys.stdin = reprim_input
     sys.stdout = reprim_output
     sys.stderr = reprim_output
     ...

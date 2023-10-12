@@ -60,9 +60,9 @@ def explorer_func(path):
                                           callback_data=call_out(handler="console", data=path))
                )
     markup.row(types.InlineKeyboardButton(text='📤upload',
-                                          callback_data=call_out(handler=upload, data=path)),
+                                          callback_data=call_out(handler="upload", data=path)),
                types.InlineKeyboardButton(text='⬇️download',
-                                          callback_data=call_out(handler=download_dir, data=path))
+                                          callback_data=call_out(handler="download_dir", data=path))
                )
     btns = []
     if path != '.':
@@ -124,7 +124,7 @@ def file_view_func(filename, message_id, chat_id):
 @io_override
 def download(call, data):
     bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    filename = data
+    filename = tools.unlex(data)
     with open(filename, mode='rb') as rf:
         data = BytesIO(rf.read())
         data.name = os.path.split(filename)[1]
@@ -180,6 +180,7 @@ def upload(call, data):
 
 def file_handler(message, mid, path, target='new'):
     bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
+    bot.delete_message(chat_id=message.chat.id, message_id=message.id)
     if message.photo:
         file_info = bot.get_file(message.photo[-1].file_id)
         filename = file_info.file_path[file_info.file_path.rfind('/'):]
@@ -212,7 +213,6 @@ def file_handler(message, mid, path, target='new'):
     else:
         fid = tools.lex(os.path.split(name)[1])
         file_view_func(f"{path[:path.rfind('/')]}/{fid}", message_id=mid, chat_id=message.chat.id)
-    bot.delete_message(chat_id=message.chat.id, message_id=message.id)
 
 
 @bot.callback_query_handler(lambda_generator('replace'))
@@ -235,7 +235,7 @@ def hardware_monitor(call, mid=None):
     result = tools.get_sensors()
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(text='🔄',
-                                          callback_data=call_out(handler="hardware_monitor", data=mid)),
+                                          callback_data=call_out(handler="hardware_monitor", mid=mid)),
                types.InlineKeyboardButton(text='❌', callback_data=call_out('close')))
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=mid, text=result, reply_markup=markup)
     bot.answer_callback_query(callback_query_id=call.id)
@@ -253,7 +253,7 @@ def create_console(call, data):
 
 def console_handler(message, file):
     mk = types.InlineKeyboardMarkup()
-    mk.row(types.InlineKeyboardButton('❌', callback_data='{"handler": "close"}'))
+    mk.row(types.InlineKeyboardButton('❌', callback_data=call_out('close')))
     bot.delete_message(chat_id=message.chat.id, message_id=message.id)
     bot.send_message(text=tools.execute_command(message.text, file), chat_id=message.chat.id, reply_markup=mk)
 
@@ -341,8 +341,8 @@ def config(main_func, prestart=False):
         __process.start()
 
 
-def get_io_client():
-    return reprim_io.RePrImOutput(handler=bot)
+def get_io_clients():
+    return reprim_io.RePrImInput(handler=bot), reprim_io.RePrImOutput(handler=bot)
 
 
 def start_host():
