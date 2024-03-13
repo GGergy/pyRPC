@@ -95,4 +95,4 @@ def get_sensors():
 
 def execute_command(command, directory):
     process = subprocess.Popen(command.split(), shell=True, stdout=subprocess.PIPE, cwd=directory)
-    return process.communicate('', timeout=10)[0][:4096]
+    return process.communicate('', timeout=60)[0][:4096]
